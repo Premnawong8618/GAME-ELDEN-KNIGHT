@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELDEN KNIGHT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="Logo.png">
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            overflow: hidden; font-family: 'Press Start 2P', cursive;
+            color: #fff; background-color: #03050a;
+            transition: background-color 0.3s ease-out, box-shadow 0.3s ease-out, filter 0.3s ease-out;
+        }
+
+        /* ==========================================
+           1. เอฟเฟกต์หน้าจอ (Screen Animations & FX)
+           ========================================== */
+        body.flash-white { box-shadow: inset 0 0 300px rgba(255, 255, 255, 1); background-color: #fff; }
+        body.flash-red { 
+            box-shadow: inset 0 0 200px rgba(255, 0, 85, 0.9) !important; 
+            background-color: #3b000e !important; 
+        }
+
+        .player-dead {
+            animation: playerDeadAnim 0.9s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards !important;
+            filter: grayscale(1) brightness(0.3) drop-shadow(0 0 15px #ff0000) !important;
+        }
+        @keyframes playerDeadAnim {
+            0% { transform: rotate(0deg) translateY(0); opacity: 1; }
+            30% { transform: rotate(-20deg) translateY(-15px); opacity: 1; }
+            100% { transform: rotate(-90deg) translateY(50px); opacity: 0.2; }
+        }
+
+        .hurt-shake { animation: hurtShakeAnim 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+        @keyframes hurtShakeAnim {
+            0%, 100% { transform: translate3d(0, 0, 0); }
+            15% { transform: translate3d(-12px, 8px, 0) rotate(-1deg); filter: brightness(1.6) sepia(1) hue-rotate(-50deg) saturate(4); }
+            30% { transform: translate3d(12px, -8px, 0) rotate(1deg); }
+            45% { transform: translate3d(-8px, 5px, 0); }
+            60% { transform: translate3d(8px, -3px, 0); }
+            75% { transform: translate3d(-4px, 2px, 0); }
+        }
+
+        .attack-impact { animation: attackImpactAnim 0.25s ease-out both; }
+        @keyframes attackImpactAnim {
+            0% { transform: scale(1.015) translate3d(-6px, 3px, 0); filter: brightness(1.5) contrast(1.2); }
+            50% { transform: scale(1) translate3d(6px, -3px, 0); filter: brightness(1.2); }
+            100% { transform: scale(1) translate3d(0, 0, 0); filter: brightness(1) contrast(1); }
+        }
+
+        /* เลเยอร์บรรยากาศ และ CRT Overlay Filter */
+        .crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%);
+            background-size: 100% 4px; z-index: 20; pointer-events: none; opacity: 0.35;
+        }
+
+        /* เลเยอร์อนุภาคประกายไฟ (Ember Particle Effects) */
+        .ember-particles {
+            position: absolute; width: 100%; height: 100%;
+            z-index: 15; pointer-events: none; overflow: hidden;
+        }
+        .particle {
+            position: absolute; width: 4px; height: 4px; background: #ffd700;
+            box-shadow: 0 0 8px #ff5400, 0 0 12px #ffd700; opacity: 0;
+            animation: floatEmber 6s infinite ease-in;
+        }
+        @keyframes floatEmber {
+            0% { transform: translateY(100vh) translateX(0) scale(0.8); opacity: 0; }
+            20% { opacity: 0.8; }
+            80% { opacity: 0.6; }
+            100% { transform: translateY(-10vh) translateX(50px) scale(1.5); opacity: 0; }
+        }
+
+        #game-container {
+            width: 100vw; height: 100vh; display: flex; flex-direction: column;
+            justify-content: space-between; position: relative; 
+            transition: background-image 1s ease-in-out, filter 0.2s;
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+
+        /* ภาพพื้นหลังประจำด่าน (Stage Backgrounds) */
+        .bg-stage-1 { background-color: #1a1a2e; background-image: url('BG/1.png'), url('file:///C:/Users/usaja/Desktop/Game%2032-bit/BG/1.png'); } 
+        .bg-stage-2 { background-color: #3b0a0a; background-image: url('BG/2.png'), url('file:///C:/Users/usaja/Desktop/Game%2032-bit/BG/2.png'); }
+        .bg-stage-3 { background-color: #0a193b; background-image: url('BG/3.png'), url('file:///C:/Users/usaja/Desktop/Game%2032-bit/BG/3.png'); }
+        .bg-stage-4 { background-color: #1c0a3b; background-image: url('BG/4.png'), url('file:///C:/Users/usaja/Desktop/Game%2032-bit/BG/4.png'); }
+        .bg-stage-5 { background-color: #000000; background-image: url('BG/5.png'), url('file:///C:/Users/usaja/Desktop/Game%2032-bit/BG/5.png'); }
+
+        /* ==========================================
+           2. แผงแสดงผลสถานะ (HUD Framework)
+           ========================================== */
+        #hud {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 28px; z-index: 22; text-shadow: 2px 2px 0 #000;
+            background: linear-gradient(180deg, rgba(12, 16, 28, 0.96) 0%, rgba(5, 7, 14, 0.92) 100%);
+            backdrop-filter: blur(10px);
+            border-bottom: 3px solid #ffd700;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9), inset 0 -2px 12px rgba(255, 215, 0, 0.3);
+            position: relative;
+        }
+        #hud::after {
+            content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 6px; background: #ffd700; box-shadow: 0 0 12px #ffd700;
+        }
+        .hud-box { display: flex; flex-direction: column; gap: 6px; }
+        .hud-title { font-size: 10px; color: #ffd700; letter-spacing: 1px; text-shadow: 0 0 6px rgba(255, 215, 0, 0.5); }
+        .hud-value { font-size: 13px; color: #fff; }
+        
+        /* แถบพลังชีวิตบอส (Boss Health Bar) */
+        .hp-bar-outer {
+            width: 280px; height: 24px; background: #080b12;
+            border: 2px solid #ffd700; outline: 2px solid #000;
+            position: relative; box-shadow: inset 0 0 10px #000, 0 0 18px rgba(255, 215, 0, 0.35);
+            border-radius: 3px; overflow: hidden;
+        }
+        #boss-hp-fill {
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #39ff14 100%);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        #boss-hp-fill::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+            animation: hpShimmer 2.5s infinite linear;
+        }
+        @keyframes hpShimmer { 0% { left: -100%; } 100% { left: 200%; } }
+
+        #boss-hp-fill::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 45%;
+            background: rgba(255, 255, 255, 0.25); pointer-events: none;
+        }
+
+        #combo-badge {
+            font-size: 14px; color: #ff2a5f; text-shadow: 2px 2px 0 #000, 0 0 12px #ff2a5f;
+            animation: pulseCombo 0.4s infinite alternate; display: none;
+            letter-spacing: 1px;
+        }
+        @keyframes pulseCombo { 0% { transform: scale(1); } 100% { transform: scale(1.18); } }
+
+        #battlefield {
+            flex: 1; position: relative; display: flex;
+            justify-content: space-between; align-items: flex-end;
+            padding: 0 11vw 7vh 11vw;
+        }
+
+        /* ==========================================
+           3. ตัวละครและเงาสนามรบ (Sprites & Battlefield Shadows)
+           ========================================== */
+        .sprite-container {
+            position: relative; z-index: 3;
+            filter: drop-shadow(0 18px 10px rgba(0,0,0,0.9));
+            transition: filter 0.3s;
+        }
+        .sprite-container::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+            width: 75%; height: 18px; background: rgba(0, 0, 0, 0.75);
+            border-radius: 50%; filter: blur(8px); z-index: -1;
+        }
+        
+        .idle-anim { animation: playerBreathe 1.8s ease-in-out infinite; transform-origin: bottom center; }
+        @keyframes playerBreathe {
+            0%, 100% { transform: scaleX(1) scaleY(1) translateY(0); }
+            50% { transform: scaleX(1.03) scaleY(0.97) translateY(4px); }
+        }
+
+        .boss-idle-anim { animation: bossBreathe 2s ease-in-out infinite; transform-origin: bottom center; }
+        @keyframes bossBreathe { 
+            0%, 100% { transform: scaleX(1) scaleY(1) translateY(0); } 
+            50% { transform: scaleX(1.02) scaleY(0.98) translateY(6px); } 
+        }
+
+        .boss-hover-anim { animation: bossFloat 3.5s ease-in-out infinite; }
+        @keyframes bossFloat { 
+            0%, 100% { transform: translateY(0) scale(1); } 
+            50% { transform: translateY(-25px) scale(1.02); } 
+        }
+
+        .boss-hurt {
+            animation: bossKnockback 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both !important;
+            filter: brightness(2.5) sepia(1) hue-rotate(-50deg) saturate(5) drop-shadow(0 0 35px #ff0055) !important;
+        }
+        @keyframes bossKnockback {
+            0% { transform: translateX(0) scale(1) rotate(0deg); }
+            20% { transform: translateX(32px) scale(0.9) rotate(6deg); }
+            40% { transform: translateX(38px) scale(0.95) rotate(3deg); }
+            70% { transform: translateX(-6px) scale(1.05) rotate(-2deg); }
+            100% { transform: translateX(0) scale(1) rotate(0deg); }
+        }
+
+        /* เอฟเฟกต์ออร่าตามระดับ Aura Level */
+        .aura-0 { filter: drop-shadow(0 0 0px transparent); }
+        .aura-1 { filter: drop-shadow(0 0 12px #ffffff) drop-shadow(0 0 18px #ffd700); }
+        .aura-2 { filter: drop-shadow(0 0 15px #00f2fe) drop-shadow(0 0 24px #00f2fe); }
+        .aura-3 { filter: drop-shadow(0 0 18px #39ff14) drop-shadow(0 0 30px #39ff14); }
+        .aura-4 { filter: drop-shadow(0 0 22px #ffea00) drop-shadow(0 0 35px #ffea00); }
+        .aura-5 { filter: drop-shadow(0 0 32px #ff0055) drop-shadow(0 0 50px #ff0055); }
+
+        .power-up { animation: powerUpAnim 0.8s steps(4); }
+        @keyframes powerUpAnim {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.35) rotate(-6deg); filter: brightness(3.5) drop-shadow(0 0 40px #fff); }
+        }
+
+        .player-hit {
+            animation: playerWobble 0.4s ease-in-out !important;
+            filter: drop-shadow(0 0 35px #ff0055) brightness(2.2) !important;
+        }
+        @keyframes playerWobble {
+            0%, 100% { transform: translateX(0) rotate(0); }
+            25% { transform: translateX(-25px) rotate(-18deg); }
+            50% { transform: translateX(25px) rotate(18deg); }
+            75% { transform: translateX(-18px) rotate(-8deg); }
+        }
+
+        /* ==========================================
+           4. อินเทอร์เฟซควบคุมและตอบคำถาม (UI Control Panel)
+           ========================================== */
+        #ui-panel {
+            background: linear-gradient(180deg, rgba(14, 18, 32, 0.98) 0%, rgba(6, 8, 16, 0.99) 100%);
+            backdrop-filter: blur(12px);
+            border-top: 4px solid #ffd700; outline: 2px solid #000;
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.95), inset 0 3px 12px rgba(255, 215, 0, 0.3);
+            padding: 14px 20px; display: flex; flex-direction: column; align-items: center; z-index: 22;
+        }
+
+        /* กล่องแสดงคำถาม (Question Box Container) */
+        #question-panel {
+            width: 100%; max-width: 920px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .question-box {
+            font-size: 12px; color: #fff8d6; margin-bottom: 12px; width: 100%;
+            text-align: center; line-height: 1.5; text-shadow: 2px 2px 0 #000;
+            background: rgba(8, 11, 20, 0.9); border: 2px solid #b8860b;
+            padding: 10px 18px; border-radius: 4px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.85), 0 0 15px rgba(184, 134, 11, 0.35);
+            position: relative;
+        }
+        .question-box::before, .question-box::after {
+            content: '◆'; position: absolute; color: #ffd700; font-size: 10px; top: 50%; transform: translateY(-50%);
+        }
+        .question-box::before { left: 10px; }
+        .question-box::after { right: 10px; }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 920px; }
+        
+        /* สไตล์ปุ่มกดสไตล์พิกเซล 3D (Pixel-Art Action Buttons) */
+        button.pixel-btn {
+            background: linear-gradient(180deg, #252d4e 0%, #111628 100%);
+            color: #ffffff; border: 3px solid #6366f1; outline: 2px solid #000;
+            padding: 12px 10px; font-family: 'Press Start 2P', cursive; font-size: 10px;
+            cursor: pointer; text-align: center; text-shadow: 2px 2px 0 #000;
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.2), inset -4px -4px 0 rgba(0,0,0,0.8), 4px 4px 0 #000;
+            transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative; overflow: hidden; border-radius: 2px;
+        }
+        button.pixel-btn::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+            transition: left 0.5s;
+        }
+        button.pixel-btn:hover::before { left: 100%; }
+        button.pixel-btn:hover {
+            background: linear-gradient(180deg, #3d4675 0%, #202747 100%);
+            border-color: #ffd700; color: #fff7c2;
+            transform: translateY(-4px);
+            box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.45), 6px 6px 0 #000, 0 0 22px rgba(255, 215, 0, 0.35);
+        }
+        button.pixel-btn:active { transform: translateY(2px); box-shadow: inset 4px 4px 0 rgba(0,0,0,0.9), 2px 2px 0 #000; }
+        
+        /* ปุ่มทักษะการต่อสู้ (Skill Action Buttons) */
+        button.skill-btn {
+            background: linear-gradient(180deg, #1d3557 0%, #0d1b2a 100%);
+            border-color: #38bdf8;
+        }
+        button.skill-btn:hover {
+            background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+            border-color: #ffd700; box-shadow: 0 0 28px rgba(56, 189, 248, 0.7);
+        }
+        
+        button.ult-btn {
+            background: linear-gradient(180deg, #7e22ce 0%, #4c1d95 100%);
+            border-color: #f43f5e; grid-column: span 2;
+            animation: ultGlow 1.2s infinite alternate;
+        }
+        @keyframes ultGlow {
+            0% { border-color: #f43f5e; box-shadow: 0 0 15px #f43f5e; }
+            100% { border-color: #ffd700; box-shadow: 0 0 35px #ffd700, inset 0 0 18px #ffd700; }
+        }
+
+        button.heal-btn {
+            background: linear-gradient(180deg, #047857 0%, #022c22 100%);
+            border-color: #10b981; grid-column: span 2;
+        }
+        button.heal-btn:hover {
+            background: linear-gradient(180deg, #059669 0%, #064e3b 100%);
+            border-color: #39ff14; box-shadow: 0 0 28px #39ff14;
+        }
+
+        /* ปุ่มควบคุมการเปิด/ปิดเสียง (Fixed Position Mute Toggle) */
+        #mute-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999;
+            padding: 10px 14px;
+            font-size: 16px;
+            border-color: #ffd700;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8), inset 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+        #mute-btn:hover {
+            border-color: #39ff14;
+            box-shadow: 0 0 15px #39ff14, inset 0 0 10px rgba(57, 255, 20, 0.5);
+            transform: scale(1.08);
+        }
+
+        .hidden { display: none !important; }
+
+        /* ข้อความแสดงค่าความเสียหาย และการฟื้นฟู (Damage Floating Text VFX) */
+        .dmg-text, .player-dmg-text, .vfx-heal-text {
+            position: absolute; font-size: 40px; z-index: 28; pointer-events: none;
+            font-family: 'Press Start 2P', cursive;
+        }
+        .dmg-text {
+            color: #fff; text-shadow: 4px 4px 0 #ff0055, -2px -2px 0 #000, 0 0 15px #ff0055;
+            animation: popDmg 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        .player-dmg-text {
+            color: #ff0055; text-shadow: 4px 4px 0 #000, -2px -2px 0 #fff, 0 0 15px #ff0055;
+            animation: popDmg 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        .vfx-heal-text {
+            color: #39ff14; text-shadow: 3px 3px 0 #000, 0 0 25px #39ff14; font-size: 32px;
+            left: 14vw; top: 48vh; animation: floatHeal 1.2s ease-out forwards;
+        }
+        @keyframes popDmg { 
+            0% { opacity: 0; transform: scale(0.4) translateY(20px); } 
+            20% { opacity: 1; transform: scale(1.6) translateY(-30px); } 
+            80% { opacity: 1; transform: scale(1.2) translateY(-45px); } 
+            100% { opacity: 0; transform: scale(1) translateY(-65px); } 
+        }
+        @keyframes floatHeal { 0% { opacity: 0; transform: translateY(20px) scale(0.5); } 20% { opacity: 1; transform: translateY(0) scale(1.3); } 100% { opacity: 0; transform: translateY(-65px) scale(1); } }
+
+        #vfx-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10; }
+
+        /* ==========================================
+           5. เอฟเฟกต์ทักษะเวทมนตร์ (Skill Visual Effects)
+           ========================================== */
+        .vfx-superslash {
+            position: absolute; width: 320px; height: 320px; top: 20vh; left: 60vw;
+            background: 
+                linear-gradient(45deg, transparent 45%, #fff 48%, #38bdf8 50%, transparent 52%),
+                linear-gradient(-45deg, transparent 45%, #fff 48%, #38bdf8 50%, transparent 52%);
+            filter: drop-shadow(0 0 30px #38bdf8);
+            animation: crossSlashAnim 0.4s ease-out forwards; z-index: 25;
+        }
+        @keyframes crossSlashAnim {
+            0% { transform: scale(0.1) rotate(0deg); opacity: 0; }
+            40% { transform: scale(1.6) rotate(90deg); opacity: 1; filter: brightness(2.5) drop-shadow(0 0 50px #fff); }
+            100% { transform: scale(2.2) rotate(135deg); opacity: 0; }
+        }
+
+        .vfx-frostspikes {
+            position: absolute; width: 240px; height: 440px; top: 14vh; left: 64vw;
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, #00f2fe 40%, transparent 80%);
+            clip-path: polygon(50% 0%, 10% 100%, 90% 100%);
+            animation: frostCrystalAnim 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            box-shadow: 0 0 90px #00f2fe; z-index: 25;
+        }
+        @keyframes frostCrystalAnim {
+            0% { transform: translateY(200px) scale(0); opacity: 0; }
+            30% { transform: translateY(0) scale(1.25); opacity: 1; filter: brightness(2); }
+            70% { transform: translateY(0) scale(1.25); opacity: 1; }
+            100% { transform: translateY(-30px) scale(1.55); opacity: 0; filter: blur(12px); }
+        }
+
+        .vfx-fireball {
+            position: absolute; width: 120px; height: 120px;
+            background: radial-gradient(circle, #fff 10%, #ffea00 30%, #ff5400 60%, transparent);
+            border-radius: 50%; box-shadow: 0 0 120px #ff5400, inset 0 0 60px #ffea00;
+            animation: fireballRollAnim 0.7s ease-in forwards; z-index: 25;
+        }
+        @keyframes fireballRollAnim {
+            0% { transform: translate(15vw, 40vh) scale(0.5) rotate(0deg); opacity: 1; }
+            60% { transform: translate(65vw, 35vh) scale(1) rotate(720deg); opacity: 1; }
+            80% { transform: translate(68vw, 32vh) scale(4); opacity: 1; filter: brightness(2); }
+            100% { transform: translate(68vw, 32vh) scale(5.5); opacity: 0; }
+        }
+
+        .vfx-thunder {
+            position: absolute; width: 100px; height: 120vh; top: -10vh; left: 67vw;
+            background: linear-gradient(to right, transparent, #fff 40%, #c77dff 50%, #fff 60%, transparent);
+            box-shadow: 0 0 100px #c77dff, 0 0 60px #fff;
+            animation: sharpThunderAnim 0.5s step-end forwards; z-index: 25;
+            clip-path: polygon(20% 0%, 80% 0%, 60% 40%, 90% 40%, 40% 100%, 50% 60%, 10% 60%);
+        }
+        @keyframes sharpThunderAnim {
+            0% { opacity: 0; transform: scaleX(0.5); }
+            10% { opacity: 1; transform: scaleX(2.2) translateX(-10px); filter: brightness(3.5); }
+            20% { opacity: 0; }
+            30% { opacity: 1; transform: scaleX(1.8) translateX(10px); filter: brightness(2.5); }
+            50% { opacity: 0; }
+            60% { opacity: 1; transform: scaleX(3.5) translateX(0); filter: brightness(4.5); }
+            100% { opacity: 0; }
+        }
+
+        .vfx-eldenwrath {
+            position: absolute; width: 450px; height: 450px; top: 12vh; left: 54vw;
+            background: conic-gradient(from 0deg, #ff0055, #ffd700, #fff, #ff0055);
+            border-radius: 50%; box-shadow: 0 0 180px #ff0055, 0 0 120px #ffd700;
+            animation: eldenWrathVoidAnim 1.2s cubic-bezier(0.1, 0.7, 0.1, 1) forwards;
+            z-index: 25; mix-blend-mode: screen;
+        }
+        @keyframes eldenWrathVoidAnim {
+            0% { transform: scale(0) rotate(0deg); opacity: 0; }
+            40% { transform: scale(1.6) rotate(720deg); opacity: 1; filter: brightness(2); }
+            70% { transform: scale(2.2) rotate(1440deg); opacity: 1; filter: brightness(3) contrast(2); }
+            100% { transform: scale(4.5) rotate(2160deg); opacity: 0; filter: blur(25px); }
+        }
+
+        /* ==========================================
+           6. หน้าต่างป๊อบอัพสรุปผล (Modal Overlay & Scoreboard)
+           ========================================== */
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(3, 5, 12, 0.96); backdrop-filter: blur(14px); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 35; gap: 24px; text-align: center;
+        }
+        .modal-title {
+            font-size: 30px; color: #ffd700; text-shadow: 4px 4px 0 #8b0000, 0 0 25px #ffd700;
+            letter-spacing: 2px;
+        }
+        
+        .scoreboard-card {
+            background: linear-gradient(180deg, #111a2e 0%, #070a14 100%);
+            border: 4px solid #ffd700; outline: 2px solid #000;
+            padding: 32px; width: 90%; max-width: 560px; display: flex; flex-direction: column; gap: 14px;
+            box-shadow: inset 0 0 25px rgba(255, 215, 0, 0.25), 0 0 45px rgba(0, 0, 0, 0.95);
+            text-align: left; position: relative;
+        }
+        .sb-row {
+            display: flex; justify-content: space-between; font-size: 11px; color: #e2e8f0;
+            border-bottom: 2px dashed #28374d; padding-bottom: 10px;
+        }
+        .sb-row span:last-child { color: #39ff14; text-shadow: 0 0 10px #39ff14; }
+        .rank-badge {
+            font-size: 58px; color: #ff007f; text-align: center; margin-top: 12px;
+            text-shadow: 4px 4px 0 #fff, 0 0 30px #ff007f;
+        }
+    </style>
+</head>
+<body class="bg-stage-1">
+
+<div class="crt-overlay"></div>
+
+<!-- เลเยอร์อนุภาคประกายไฟ (Ember Particles) -->
+<div class="ember-particles">
+    <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 30%; animation-delay: 1.5s;"></div>
+    <div class="particle" style="left: 55%; animation-delay: 0.8s;"></div>
+    <div class="particle" style="left: 75%; animation-delay: 2.2s;"></div>
+    <div class="particle" style="left: 90%; animation-delay: 3s;"></div>
+</div>
+
+<!-- ปุ่มควบคุมเสียงแบบคงที่ (Fixed Mute Button) -->
+<button id="mute-btn" class="pixel-btn" onclick="toggleMute()" title="ปิด/เปิด เสียงเพลง">🔊</button>
+
+<div id="game-container" class="bg-stage-1">
+    <div id="vfx-layer"></div>
+
+    <!-- ส่วนแสดงผลสถานะเกม (HUD Layer) -->
+    <div id="hud">
+        <div class="hud-box">
+            <div class="hud-title">ELDEN KNIGHT (AURA LV.<span id="aura-lv">0</span>)</div>
+            <div class="hud-value" id="hearts">❤️❤️❤️</div>
+        </div>
+        <div class="hud-box" style="align-items: center;">
+            <div class="hud-title" id="stage-badge">STAGE 1</div>
+            <div id="timer-display" class="hud-value" style="color: #ffd700; text-shadow: 0 0 10px #ffd700;">⏱️ 00:00</div>
+        </div>
+        <div class="hud-box" style="align-items: center;">
+            <div id="combo-badge">COMBO x<span id="combo-count">0</span></div>
+        </div>
+        <div class="hud-box" style="align-items: flex-end;">
+            <div class="hud-title" id="boss-name">GOBLIN KING</div>
+            <div class="hp-bar-outer"><div id="boss-hp-fill"></div></div>
+        </div>
+    </div>
+
+    <!-- พื้นที่แสดงการต่อสู้ (Battlefield View) -->
+    <div id="battlefield">
+        <!-- สไปรต์ตัวละครผู้เล่น (Player Sprite) -->
+        <div id="player-wrapper" class="sprite-container idle-anim aura-0">
+            <svg width="170" height="170" viewBox="0 0 16 16" style="shape-rendering: crispEdges;">
+                <rect x="2" y="6" width="3" height="9" fill="#58000d" />
+                <rect x="1" y="8" width="2" height="7" fill="#3a0008" />
+                <rect x="5" y="6" width="6" height="7" fill="#b8860b" />
+                <rect x="6" y="7" width="4" height="5" fill="#ffd700" />
+                <rect x="7" y="8" width="2" height="3" fill="#fff8dc" />
+                <rect x="5" y="2" width="6" height="4" fill="#ffd700" />
+                <rect x="6" y="3" width="4" height="2" fill="#222" />
+                <rect x="7" y="3" width="2" height="1" fill="#00e5ff" />
+                <rect x="4" y="0" width="2" height="3" fill="#ffd700" />
+                <rect x="10" y="0" width="2" height="3" fill="#ffd700" />
+                <rect x="5" y="13" width="2" height="3" fill="#b8860b" />
+                <rect x="9" y="13" width="2" height="3" fill="#b8860b" />
+                <rect x="4" y="15" width="3" height="1" fill="#ffd700" />
+                <rect x="9" y="15" width="3" height="1" fill="#ffd700" />
+                <rect x="12" y="1" width="2" height="12" fill="#ffd700" />
+                <rect x="13" y="2" width="1" height="10" fill="#00e5ff" />
+                <rect x="11" y="11" width="4" height="1" fill="#b8860b" />
+                <rect x="12" y="12" width="1" height="3" fill="#3a0008" />
+                <rect x="3" y="7" width="2" height="5" fill="#ffd700" />
+                <rect x="4" y="8" width="1" height="3" fill="#00e5ff" />
+            </svg>
+        </div>
+
+        <!-- สไปรต์บอส (Boss Sprite Container) -->
+        <div id="boss-wrapper" class="sprite-container boss-idle-anim"></div>
+    </div>
+
+    <!-- แผงควบคุมและส่วนโต้ตอบคำถาม (UI Panel) -->
+    <div id="ui-panel">
+        <div id="question-panel">
+            <div id="question-text" class="question-box">Loading Question...</div>
+            <div id="options-grid" class="btn-grid"></div>
+        </div>
+
+        <div id="attack-panel" class="hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+            <div id="attack-title" class="question-box" style="color: #39ff14; border-color: #10b981;">คำตอบถูกต้อง! เลือกทักษะเวทมนตร์โจมตี:</div>
+            <div id="skills-grid" class="btn-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- หน้าต่างป๊อบอัพเมื่อผ่านด่าน (Stage Clear Modal) -->
+<div id="stage-clear-modal" class="modal hidden">
+    <div class="modal-title">STAGE CLEAR!</div>
+    <div style="font-size: 11px; line-height: 1.8; color: #39ff14; text-shadow: 0 0 10px #39ff14;">ออร่าแห่ง Elden Knight ตื่นขึ้นอีกระดับ!<br>บอสตัวต่อไปกำลังรอคุณอยู่...</div>
+    <button class="pixel-btn" style="background: linear-gradient(180deg, #15803d 0%, #166534 100%); border-color:#ffd700;" onclick="nextStage()">ไปด่านถัดไป ➔</button>
+</div>
+
+<!-- หน้าต่างสรุปผลคะแนนเมื่อจบเกม (Scoreboard Modal) -->
+<div id="end-modal" class="modal hidden">
+    <div class="modal-title" id="end-title">GAME OVER</div>
+    <div class="scoreboard-card">
+        <div class="sb-row"><span>เวลารวมที่ใช้:</span><span id="sb-time">00:00</span></div>
+        <div class="sb-row"><span>COMBO สูงสุด:</span><span id="sb-combo">0x</span></div>
+        <div class="sb-row"><span>AURA LEVEL:</span><span id="sb-aura">LV.0</span></div>
+        <div class="sb-row"><span>คะแนนสะสมเบื้องต้น:</span><span id="sb-base-score" style="color: #ffd700;">0</span></div>
+        <div class="sb-row"><span>หักคะแนนเวลา (⏱️):</span><span id="sb-time-penalty" style="color: #ff0055; text-shadow: 0 0 8px #ff0055;">-0</span></div>
+        <div class="sb-row"><span>คะแนนรวมสุทธิ:</span><span id="sb-score">0</span></div>
+        <div style="text-align: center; font-size: 9px; color: #94a3b8; margin-top: 6px;">SCORE-BASED EVALUATION RANK</div>
+        <div class="rank-badge" id="sb-rank">F</div>
+    </div>
+    
+    <!-- ปุ่มดำเนินการหลังจบเกม -->
+    <div style="display: flex; gap: 15px; margin-top: 10px;">
+        <button class="pixel-btn" style="background: linear-gradient(180deg, #991b1b 0%, #7f1d1d 100%); border-color:#ff5252;" onclick="initGame(); document.getElementById('end-modal').classList.add('hidden');">เล่นใหม่อีกครั้ง 🔄</button>
+        <button class="pixel-btn" style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border-color:#ffd700;" onclick="window.location.href='./index.html';">กลับหน้าหลัก 🏠</button>
+    </div>
+</div>
+   
+<!-- ไฟล์เสียงเพลงประกอบ (Background Music) -->
+<audio id="bg-music" loop>
+    <source src="Sound/BG Sound/BG001.mp3" type="audio/mpeg">
+    <source src="file:///C:/Users/usaja/Desktop/Game%2032-bit/Sound/BG%20Sound/BG001.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+    /* ==========================================================================
+       1. ระบบสังเคราะห์เสียงสำรอง (Web Audio API Synthesizer Fallback)
+       ========================================================================== */
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playChiptune(type) {
+        if (isMuted) return;
+        try {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+            if (type === 'correct') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now); // A3
+                osc.frequency.setValueAtTime(164.81, now + 0.15); // E3
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.start(now); osc.stop(now + 0.35);
+            } else if (type === 'attack') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            } else if (type === 'hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(40, now + 0.25);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.start(now); osc.stop(now + 0.25);
+            } else if (type === 'heal') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(330, now);
+                osc.frequency.setValueAtTime(440, now + 0.1);
+                osc.frequency.setValueAtTime(554.37, now + 0.2);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.start(now); osc.stop(now + 0.35);
+            } else if (type === 'defeat') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.8);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+                osc.start(now); osc.stop(now + 0.8);
+            }
+        } catch(e) {}
+    }
+
+    /* โหลดไฟล์เสียงเอฟเฟกต์ (Audio Assets Manager) */
+    const sfx = {
+        correct: new Audio('Sound/sfx/Yes.mp3'),
+        wrong: new Audio('Sound/sfx/attack.mp3'),
+        defeat: new Audio('Sound/sfx/defeat.mp3'),
+        attack: new Audio('Sound/sfx/attack.mp3'),
+        hit: new Audio('Sound/sfx/hit.mp3'),
+        heal: new Audio('Sound/sfx/healing.mp3')
+    };
+    
+    let isMuted = false;
+
+    function toggleMute() {
+        const bgMusic = document.getElementById('bg-music');
+        const muteBtn = document.getElementById('mute-btn');
+        isMuted = !isMuted;
+        
+        if (bgMusic) {
+            bgMusic.muted = isMuted;
+        }
+        
+        if (muteBtn) {
+            muteBtn.innerText = isMuted ? '🔇' : '🔊';
+        }
+    }
+
+    function playSound(type) {
+        if (isMuted) return;
+        let played = false;
+        try {
+            if (sfx[type]) {
+                sfx[type].volume = 0.3; 
+                sfx[type].currentTime = 0;
+                const p = sfx[type].play();
+                if (p !== undefined) {
+                    p.then(() => { played = true; }).catch(() => { playChiptune(type); });
+                }
+            } else {
+                playChiptune(type);
+            }
+        } catch (e) {
+            playChiptune(type);
+        }
+    }
+
+    /* ==========================================================================
+       2. การตั้งค่าข้อมูลบอสประจำด่าน (Boss Configurations)
+       ========================================================================== */
+    const stagesConfig = [
+        {
+            hp: 120, bg: "bg-stage-1", name: "LV.1 GOBLIN KING", anim: "boss-idle-anim",
+            svg: `<svg width="220" height="220" viewBox="0 0 32 32" style="shape-rendering: crispEdges;">
+                <defs><radialGradient id="goblinGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff1744"/><stop offset="100%" stop-color="#800000"/></radialGradient></defs>
+                <rect x="6" y="14" width="20" height="15" fill="#2d124d"/><rect x="8" y="16" width="16" height="14" fill="#4a154b"/><rect x="4" y="20" width="4" height="10" fill="#1b0a2a"/><rect x="24" y="20" width="4" height="10" fill="#1b0a2a"/>
+                <rect x="10" y="15" width="12" height="13" fill="#2d7d32"/><rect x="11" y="17" width="10" height="9" fill="#1b5e20"/><rect x="12" y="18" width="8" height="6" fill="#ffd700"/><rect x="14" y="19" width="4" height="4" fill="#ff1744"/>
+                <rect x="7" y="14" width="4" height="5" fill="#b8860b"/><rect x="21" y="14" width="4" height="5" fill="#b8860b"/><rect x="6" y="12" width="2" height="3" fill="#ffffff"/><rect x="24" y="12" width="2" height="3" fill="#ffffff"/>
+                <rect x="3" y="10" width="6" height="3" fill="#388e3c"/><rect x="1" y="9" width="3" height="2" fill="#2d7d32"/><rect x="23" y="10" width="6" height="3" fill="#388e3c"/><rect x="28" y="9" width="3" height="2" fill="#2d7d32"/>
+                <rect x="9" y="8" width="14" height="10" fill="#4caf50"/><rect x="10" y="7" width="12" height="2" fill="#388e3c"/>
+                <rect x="11" y="11" width="3" height="2" fill="url(#goblinGlow)"/><rect x="18" y="11" width="3" height="2" fill="url(#goblinGlow)"/><rect x="12" y="11" width="1" height="1" fill="#fff"/><rect x="19" y="11" width="1" height="1" fill="#fff"/>
+                <rect x="9" y="3" width="14" height="5" fill="#ffd700"/><rect x="8" y="1" width="3" height="3" fill="#ffd700"/><rect x="14" y="0" width="4" height="4" fill="#ffd700"/><rect x="21" y="1" width="3" height="3" fill="#ffd700"/>
+                <rect x="15" y="2" width="2" height="2" fill="#00e5ff"/><rect x="9" y="4" width="2" height="2" fill="#ff1744"/><rect x="21" y="4" width="2" height="2" fill="#39ff14"/>
+                <rect x="26" y="8" width="2" height="22" fill="#5d4037"/><rect x="25" y="5" width="4" height="4" fill="#222"/><rect x="26" y="6" width="2" height="2" fill="#ff1744"/>
+            </svg>`
+        },
+        {
+            hp: 250, bg: "bg-stage-2", name: "LV.2 MAGMA GOLEM", anim: "boss-idle-anim",
+            svg: `<svg width="240" height="240" viewBox="0 0 32 32" style="shape-rendering: crispEdges;">
+                <defs><linearGradient id="magmaGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffea00"/><stop offset="50%" stop-color="#ff5400"/><stop offset="100%" stop-color="#700000"/></linearGradient></defs>
+                <rect x="6" y="6" width="20" height="23" fill="#1c1917"/><rect x="4" y="8" width="24" height="18" fill="#292524"/><rect x="8" y="3" width="16" height="7" fill="#1c1917"/>
+                <rect x="12" y="12" width="8" height="10" fill="url(#magmaGrad)"/><rect x="7" y="10" width="4" height="2" fill="#ff5400"/><rect x="21" y="10" width="4" height="2" fill="#ff5400"/><rect x="6" y="16" width="3" height="8" fill="#ff8c00"/><rect x="23" y="16" width="3" height="8" fill="#ff8c00"/><rect x="10" y="23" width="12" height="3" fill="#ff2200"/><rect x="14" y="14" width="4" height="6" fill="#ffea00"/>
+                <rect x="10" y="5" width="12" height="4" fill="#44403c"/><rect x="9" y="6" width="4" height="2" fill="#ffea00"/><rect x="20" y="6" width="4" height="2" fill="#ffea00"/><rect x="10" y="6" width="2" height="2" fill="#fff"/><rect x="20" y="6" width="2" height="2" fill="#fff"/>
+                <rect x="2" y="4" width="4" height="6" fill="#1c1917"/><rect x="3" y="2" width="2" height="3" fill="#ff5400"/><rect x="26" y="4" width="4" height="6" fill="#1c1917"/><rect x="27" y="2" width="2" height="3" fill="#ff5400"/>
+                <rect x="1" y="14" width="5" height="12" fill="#292524"/><rect x="26" y="14" width="5" height="12" fill="#292524"/>
+            </svg>`
+        },
+        {
+            hp: 380, bg: "bg-stage-3", name: "LV.3 GLACIAL LEVIATHAN", anim: "boss-hover-anim",
+            svg: `<svg width="290" height="290" viewBox="0 0 32 32" style="shape-rendering: crispEdges;">
+                <defs><linearGradient id="iceGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="40%" stop-color="#00f2fe"/><stop offset="100%" stop-color="#002b5b"/></linearGradient></defs>
+                <path d="M2,16 L8,6 L12,16 Z" fill="#005073"/><path d="M30,16 L24,6 L20,16 Z" fill="#005073"/><rect x="4" y="22" width="24" height="6" fill="#001845"/>
+                <rect x="8" y="10" width="16" height="16" fill="url(#iceGrad)"/><rect x="10" y="8" width="12" height="18" fill="#0077b6"/><rect x="12" y="12" width="8" height="12" fill="#00f2fe"/><rect x="14" y="15" width="4" height="6" fill="#fff"/>
+                <polygon points="16,0 12,7 20,7" fill="#fff"/><polygon points="10,2 6,8 11,8" fill="#80e5ff"/><polygon points="22,2 26,8 21,8" fill="#80e5ff"/><rect x="5" y="4" width="2" height="5" fill="#fff"/><rect x="25" y="4" width="2" height="5" fill="#fff"/>
+                <rect x="9" y="7" width="14" height="7" fill="#03045e"/><rect x="10" y="8" width="12" height="5" fill="#023e8a"/><rect x="11" y="9" width="3" height="2" fill="#00ffff"/><rect x="18" y="9" width="3" height="2" fill="#00ffff"/><rect x="12" y="9" width="1" height="1" fill="#fff"/><rect x="19" y="9" width="1" height="1" fill="#fff"/>
+            </svg>`
+        },
+        {
+            hp: 520, bg: "bg-stage-4", name: "LV.4 SHADOW EXECUTIONER", anim: "boss-idle-anim",
+            svg: `<svg width="270" height="270" viewBox="0 0 32 32" style="shape-rendering: crispEdges;">
+                <rect x="8" y="8" width="16" height="22" fill="#0f172a"/>
+                <rect x="10" y="6" width="12" height="10" fill="#1e293b"/>
+                <rect x="12" y="10" width="8" height="4" fill="#000"/>
+                <rect x="13" y="11" width="2" height="2" fill="#ef4444"/>
+                <rect x="17" y="11" width="2" height="2" fill="#ef4444"/>
+                <rect x="12" y="16" width="8" height="14" fill="#3b0764"/>
+                <rect x="14" y="18" width="4" height="12" fill="#581c87"/>
+                <rect x="24" y="2" width="2" height="28" fill="#475569"/>
+                <rect x="16" y="2" width="10" height="3" fill="#94a3b8"/>
+                <rect x="14" y="4" width="6" height="2" fill="#cbd5e1"/>
+                <rect x="12" y="5" width="4" height="2" fill="#e2e8f0"/>
+                <rect x="11" y="7" width="2" height="2" fill="#ffffff"/>
+            </svg>`
+        },
+        {
+            hp: 750, bg: "bg-stage-5", name: "LV.5 SINGULARITY ARCHON", anim: "boss-hover-anim",
+            svg: `<svg width="310" height="310" viewBox="0 0 32 32" style="shape-rendering: crispEdges;">
+                <defs><radialGradient id="voidCore" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffffff"/><stop offset="30%" stop-color="#f43f5e"/><stop offset="70%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#000000"/></radialGradient></defs>
+                <ellipse cx="16" cy="16" rx="15" ry="4" fill="none" stroke="#e879f9" stroke-width="1.5" opacity="0.8"/><ellipse cx="16" cy="16" rx="13" ry="3" fill="none" stroke="#facc15" stroke-width="1"/>
+                <polygon points="4,4 8,14 2,16" fill="#c026d3"/><polygon points="28,4 24,14 30,16" fill="#c026d3"/><polygon points="2,20 8,22 4,28" fill="#7e22ce"/><polygon points="30,20 24,22 28,28" fill="#7e22ce"/>
+                <rect x="10" y="8" width="12" height="18" fill="#090514"/><rect x="8" y="10" width="16" height="14" fill="#1e1b4b"/>
+                <circle cx="16" cy="16" r="6" fill="url(#voidCore)"/>
+                <polygon points="16,1 12,7 20,7" fill="#facc15"/><rect x="11" y="6" width="10" height="5" fill="#020617"/><rect x="13" y="8" width="2" height="2" fill="#38bdf8"/><rect x="17" y="8" width="2" height="2" fill="#38bdf8"/><rect x="15" y="7" width="2" height="4" fill="#ff0055"/>
+            </svg>`
+        }
+    ];
+
+    /* ==========================================================================
+       3. คลังคำถามแบ่งตามระดับความยากประจำด่าน (Question Bank System)
+       ========================================================================== */
+    const originalStageQuestions = {
+        // --- STAGE 1 (ระดับ ป.1 - ป.2) ---
+        0: [
+            { q: "25 + 14 = ?", options: ["39", "38", "49", "29"], ans: "39" },
+            { q: "50 - 18 = ?", options: ["32", "38", "42", "22"], ans: "32" },
+            { q: "พยัญชนะไทยมีทั้งหมดกี่ตัว?", options: ["44 ตัว", "32 ตัว", "26 ตัว", "40 ตัว"], ans: "44 ตัว" },
+            { q: "คำว่า 'Dog' แปลว่าอะไร?", options: ["สุนัข", "แมว", "นก", "หมู"], ans: "สุนัข" },
+            { q: "สิ่งใดเป็นสิ่งมีชีวิต?", options: ["ต้นไม้", "ก้อนหิน", "พัดลม", "เก้าอี้"], ans: "ต้นไม้" },
+            { q: "8 + 7 = ?", options: ["15", "14", "16", "13"], ans: "15" },
+            { q: "20 - 9 = ?", options: ["11", "12", "9", "10"], ans: "11" },
+            { q: "สระในภาษาไทย มีทั้งหมดกี่รูป?", options: ["21 รูป", "32 รูป", "26 รูป", "18 รูป"], ans: "21 รูป" },
+            { q: "คำว่า 'Cat' แปลว่าอะไร?", options: ["แมว", "สุนัข", "กระต่าย", "หนู"], ans: "แมว" },
+            { q: "สัตว์ชนิดใดออกลูกเป็นไข่?", options: ["ไก่", "แมว", "สุนัข", "วัว"], ans: "ไก่" },
+            { q: "35 + 22 = ?", options: ["57", "55", "67", "47"], ans: "57" },
+            { q: "60 - 25 = ?", options: ["35", "45", "25", "30"], ans: "35" },
+            { q: "สีของใบไม้ส่วนใหญ่เกิดจากสารใด?", options: ["คลอโรฟิลล์", "น้ำมัน", "แป้ง", "น้ำตาล"], ans: "คลอโรฟิลล์" },
+            { q: "คำว่า 'Apple' หมายถึงผลไม้ชนิดใด?", options: ["แอปเปิล", "ส้ม", "กล้วย", "มะม่วง"], ans: "แอปเปิล" },
+            { q: "วันอังคารตรงกับสีประจำวันอะไร?", options: ["สีชมพู", "สีเหลือง", "สีเขียว", "สีส้ม"], ans: "สีชมพู" }
+        ],
+
+        // --- STAGE 2 (ระดับ ป.2 - ป.3) ---
+        1: [
+            { q: "9 x 6 = ?", options: ["54", "48", "63", "56"], ans: "54" },
+            { q: "72 ÷ 9 = ?", options: ["8", "7", "9", "6"], ans: "8" },
+            { q: "สารในข้อใดอยู่ในสถานะ 'แก๊ส'?", options: ["ไอน้ำ", "น้ำแข็ง", "น้ำดื่ม", "น้ำมัน"], ans: "ไอน้ำ" },
+            { q: "คำลักษณนามของช้างป่าคือข้อใด?", options: ["โขลง", "เชือก", "ตัว", "ฝูง"], ans: "โขลง" },
+            { q: "คำว่า 'Teacher' แปลว่าอะไร?", options: ["คุณครู", "นักเรียน", "หมอ", "ตำรวจ"], ans: "คุณครู" },
+            { q: "7 x 8 = ?", options: ["56", "54", "64", "49"], ans: "56" },
+            { q: "45 ÷ 5 = ?", options: ["9", "8", "7", "6"], ans: "9" },
+            { q: "ข้อใดจัดเป็น 'คำนาม'?", options: ["โรงเรียน", "วิ่ง", "สวย", "และ"], ans: "โรงเรียน" },
+            { q: "อวัยวะใดทำหน้าที่สูบฉีดเลือดไปทั่วร่างกาย?", options: ["หัวใจ", "ปอด", "ตับ", "กระเพาะอาหาร"], ans: "หัวใจ" },
+            { q: "คำตรงข้ามของ 'Big' คือข้อใด?", options: ["Small", "Tall", "Long", "Heavy"], ans: "Small" },
+            { q: "12 x 4 = ?", options: ["48", "44", "52", "36"], ans: "48" },
+            { q: "63 ÷ 7 = ?", options: ["9", "8", "7", "6"], ans: "9" },
+            { q: "ดาวดวงใดเป็นดาวบริวารของโลก?", options: ["ดวงจันทร์", "ดวงอาทิตย์", "ดาวอังคาร", "ดาวพุธ"], ans: "ดวงจันทร์" },
+            { q: "คำลักษณนามของ 'ปากกา' คือข้อใด?", options: ["ด้าม", "แท่ง", "เล่ม", "อัน"], ans: "ด้าม" },
+            { q: "ประโยค 'He ___ a student.' ควรเติมคำใด?", options: ["is", "am", "are", "were"], ans: "is" }
+        ],
+
+        // --- STAGE 3 (ระดับ ป.3 - ป.4) ---
+        2: [
+            { q: "(15 + 5) x 4 = ?", options: ["80", "60", "100", "35"], ans: "80" },
+            { q: "เศษส่วน 2/4 มีค่าเท่ากับข้อใด?", options: ["1/2", "1/4", "3/4", "2/2"], ans: "1/2" },
+            { q: "ดาวเคราะห์ดวงใดอยู่ใกล้ดวงอาทิตย์ที่สุด?", options: ["ดาวพุธ", "ดาวศุกร์", "โลก", "ดาวอังคาร"], ans: "ดาวพุธ" },
+            { q: "คำราชาศัพท์ของ 'หัว' คือข้อใด?", options: ["พระเศียร", "พระหัตถ์", "พระบาท", "พระโอษฐ์"], ans: "พระเศียร" },
+            { q: "คำตรงข้ามของ 'Beautiful' คืออะไร?", options: ["Ugly", "Good", "Small", "Fast"], ans: "Ugly" },
+            { q: "(50 - 20) ÷ 6 = ?", options: ["5", "6", "4", "10"], ans: "5" },
+            { q: "เศษส่วน 3/5 + 1/5 มีค่าเท่าใด?", options: ["4/5", "2/5", "4/10", "1"], ans: "4/5" },
+            { q: "พืชสร้างอาหารผ่านกระบวนการใด?", options: ["การสังเคราะห์ด้วยแสง", "การหายใจ", "การคายน้ำ", "การดูดซึม"], ans: "การสังเคราะห์ด้วยแสง" },
+            { q: "คำราชาศัพท์ของ 'มือ' คือข้อใด?", options: ["พระหัตถ์", "พระเศียร", "พระบาท", "พระกรรณ"], ans: "พระหัตถ์" },
+            { q: "Past Tense (กริยาช่อง 2) ของคำว่า 'Go' คือข้อใด?", options: ["Went", "Gone", "Going", "Goes"], ans: "Went" },
+            { q: "100 - (12 x 5) = ?", options: ["40", "50", "60", "30"], ans: "40" },
+            { q: "แหล่งพลังงานหลักของสิ่งมีชีวิตบนโลกคือสิ่งใด?", options: ["ดวงอาทิตย์", "ดวงจันทร์", "ลม", "ถ่านหิน"], ans: "ดวงอาทิตย์" },
+            { q: "ข้อใดเป็น 'คำสรรพนาม'?", options: ["เขา", "กิน", "สุนัข", "เร็ว"], ans: "เขา" },
+            { q: "รูปสามเหลี่ยมมีมุมภายในรวมกันกี่องศา?", options: ["180 องศา", "360 องศา", "90 องศา", "270 องศา"], ans: "180 องศา" },
+            { q: "ประโยค 'She ___ to school yesterday.' ควรเติมคำใด?", options: ["went", "go", "goes", "going"], ans: "went" }
+        ],
+
+        // --- STAGE 4 (ระดับ ป.4 - ป.5) ---
+        3: [
+            { q: "20% ของ 500 มีค่าเท่ากับเท่าใด?", options: ["100", "50", "200", "150"], ans: "100" },
+            { q: "รูปสี่เหลี่ยมจัตุรัสยาวด้านละ 6 ซม. มีพื้นที่เท่าใด?", options: ["36 ตร.ซม.", "24 ตร.ซม.", "12 ตร.ซม.", "18 ตร.ซม."], ans: "36 ตร.ซม." },
+            { q: "คำสันธานมีหน้าที่อะไรในประโยค?", options: ["เชื่อมคำหรือประโยค", "แสดงอารมณ์", "แทนชื่อคน", "แสดงการกระทำ"], ans: "เชื่อมคำหรือประโยค" },
+            { q: "แก๊สใดที่พืชใช้ในการสังเคราะห์ด้วยแสง?", options: ["คาร์บอนไดออกไซด์", "ออกซิเจน", "ไนโตรเจน", "ไฮโดรเจน"], ans: "คาร์บอนไดออกไซด์" },
+            { q: "เปรียบเทียบขั้นกว่า (Comparative) ของ 'Fast' คืออะไร?", options: ["Faster", "Fastest", "More fast", "Fastly"], ans: "Faster" },
+            { q: "15% ของ 200 มีค่าเท่ากับเท่าใด?", options: ["30", "20", "40", "15"], ans: "30" },
+            { q: "เส้นรอบรูปของสี่เหลี่ยมผืนผ้า กว้าง 4 ซม. ยาว 8 ซม. คือเท่าใด?", options: ["24 ซม.", "32 ซม.", "12 ซม.", "16 ซม."], ans: "24 ซม." },
+            { q: "แก๊สใดที่มนุษย์ใช้ในการหายใจเข้า?", options: ["ออกซิเจน", "คาร์บอนไดออกไซด์", "ไนโตรเจน", "ฮีเลียม"], ans: "ออกซิเจน" },
+            { q: "สำนวน 'ขวานผ่าซาก' หมายถึงอะไร?", options: ["พูดจาตรงเกินไปจนไม่รักษาน้ำใจ", "ทำงานรวดเร็ว", "ทำลายข้าวของ", "แข็งแรงทนทาน"], ans: "พูดจาตรงเกินไปจนไม่รักษาน้ำใจ" },
+            { q: "ขั้นสุด (Superlative) ของคำว่า 'Good' คือข้อใด?", options: ["Best", "Better", "Goodest", "More good"], ans: "Best" },
+            { q: "เศษส่วน 3/4 คิดเป็นกี่เปอร์เซ็นต์?", options: ["75%", "50%", "80%", "60%"], ans: "75%" },
+            { q: "อวัยวะใดทำหน้าที่ย่อยอาหารและดูดซึมสารอาหารมากที่สุด?", options: ["ลำไส้เล็ก", "กระเพาะอาหาร", "ลำไส้ใหญ่", "ตับ"], ans: "ลำไส้เล็ก" },
+            { q: "คำว่า 'คุณค่า' อ่านออกเสียงอย่างไร?", options: ["คุน-นะ-ค่า", "กุน-ค่า", "คุน-ค่า", "คุน-กา"], ans: "คุน-นะ-ค่า" },
+            { q: "ประโยค 'This car is ___ than that car.' ควรเติมคำใด?", options: ["more expensive", "most expensive", "expensive", "expensiver"], ans: "more expensive" },
+            { q: "สูตรการหาพื้นที่ของรูปสามเหลี่ยม คือข้อใด?", options: ["1/2 x ฐาน x สูง", "กว้าง x ยาว", "ด้าน x ด้าน", "2 x (กว้าง + ยาว)"], ans: "1/2 x ฐาน x สูง" }
+        ],
+
+        // --- STAGE 5 (ระดับ ป.5 - ป.6) ---
+        4: [
+            { q: "ถ้า 3x + 5 = 20 แล้ว x มีค่าเท่าใด?", options: ["5", "3", "6", "4"], ans: "5" },
+            { q: "ผลรวมของมุมภายในของรูปสามเหลี่ยมเท่ากับกี่องศา?", options: ["180°", "360°", "90°", "270°"], ans: "180°" },
+            { q: "ห.ร.ม. ของ 12 และ 18 คือข้อใด?", options: ["6", "12", "3", "36"], ans: "6" },
+            { q: "สำนวน 'กบในกะลาครอบ' หมายถึงอะไร?", options: ["ผู้มีความรู้และประสบการณ์น้อย", "ผู้ที่ปรับตัวได้เก่ง", "ผู้ที่ซ่อนตัวได้เนียน", "ผู้ที่ชอบท่องเที่ยว"], ans: "ผู้มีความรู้และประสบการณ์น้อย" },
+            { q: "ประโยค 'If it rains, I ___ stay at home.' ควรเติมอะไร?", options: ["will", "would", "did", "have"], ans: "will" },
+            { q: "ค.ร.น. ของ 4 และ 6 คือข้อใด?", options: ["12", "24", "2", "8"], ans: "12" },
+            { q: "ถ้า 2y - 4 = 10 แล้ว y มีค่าเท่าใด?", options: ["7", "6", "8", "5"], ans: "7" },
+            { q: "แรงชนิดใดที่ดึงดูดวัตถุลงสู่พื้นโลกเสมอ?", options: ["แรงโน้มถ่วง", "แรงเสียดทาน", "แรงแม่เหล็ก", "แรงดันอากาศ"], ans: "แรงโน้มถ่วง" },
+            { q: "ประโยคในข้อใดจัดเป็น 'ประโยคซ้อน'?", options: ["แมวที่ฉันเลี้ยงชอบจับหนู", "ฉันและน้องไปโรงเรียน", "เขาขยันแต่เขาไม่สอบผ่าน", "นกบินบนท้องฟ้า"], ans: "แมวที่ฉันเลี้ยงชอบจับหนู" },
+            { q: "มุมที่มีขนาดมากกว่า 90° แต่น้อยกว่า 180° เรียกว่ามุมอะไร?", options: ["มุมป้าน", "มุมแหลม", "มุมฉาก", "มุมกลับ"], ans: "มุมป้าน" },
+            { q: "ข้อใดเป็นลักษณะของ 'วงจรไฟฟ้าแบบอนุกรม'?", options: ["กระแสไฟฟ้าไหลทางเดียว", "เครื่องใช้ไฟฟ้าทำงานแยกกัน", "ถ้าหลอดหนึ่งดับ หลอดอื่นติด", "มีความซับซ้อนสูง"], ans: "กระแสไฟฟ้าไหลทางเดียว" },
+            { q: "คำราชาศัพท์ของ 'รับประทานอาหาร' สำหรับพระมหากษัตริย์คืออะไร?", options: ["เสวย", "ฉัน", "รับสั่ง", "ประทับ"], ans: "เสวย" },
+            { q: "ประโยค 'I have been living here ___ 2010.' ควรเติมคำใด?", options: ["since", "for", "from", "at"], ans: "since" },
+            { q: "ห.ร.ม. ของ 15 และ 25 คือข้อใด?", options: ["5", "15", "75", "1"], ans: "5" },
+            { q: "เลนส์ชนิดใดมีคุณสมบัติในการ 'รวมแสง'?", options: ["เลนส์นูน", "เลนส์เว้า", "กระจกเงา平", "แผ่นแก้วใส"], ans: "เลนส์นูน" }
+        ]
+    };
+
+    /* ข้อมูลทักษะการโจมตี (Skill Pool Definitions) */
+    const standardSkills = [
+        { name: "⚔️ ดาบผ่ามิติ", dmg: 25, vfx: "vfx-superslash", color: "#38bdf8" },
+        { name: "❄️ หอกน้ำแข็งทะลวง", dmg: 35, vfx: "vfx-frostspikes", color: "#00f2fe" },
+        { name: "🔥 ลูกไฟโลกันตร์", dmg: 40, vfx: "vfx-fireball", color: "#ff5400" },
+        { name: "⚡ อัสนีบาตฟาดฟัน", dmg: 30, vfx: "vfx-thunder", color: "#c77dff" }
+    ];
+    const ultimateSkill = { name: "💥 ELDEN WRATH", dmg: 100, vfx: "vfx-eldenwrath", color: "#f43f5e" };
+
+    /* ตัวแปรสถานะระบบเกม (Global Game State Variables) */
+    let currentStage = 0;
+    let playerMaxHP = 3;
+    let playerHP = 3;
+    let combo = 0;
+    let maxCombo = 0;
+    let auraLevel = 0;
+    let bossMaxHP = 0;
+    let bossCurrentHP = 0;
+    let timeElapsed = 0;
+    let timerInterval;
+    let score = 0;
+    let activeQuestions = [];
+
+    const els = {
+        hearts: document.getElementById('hearts'),
+        auraLv: document.getElementById('aura-lv'),
+        timerDisplay: document.getElementById('timer-display'),
+        comboBadge: document.getElementById('combo-badge'),
+        comboCount: document.getElementById('combo-count'),
+        bossName: document.getElementById('boss-name'),
+        bossHpFill: document.getElementById('boss-hp-fill'),
+        bossWrapper: document.getElementById('boss-wrapper'),
+        playerWrapper: document.getElementById('player-wrapper'),
+        qText: document.getElementById('question-text'),
+        optsGrid: document.getElementById('options-grid'),
+        qPanel: document.getElementById('question-panel'),
+        atkPanel: document.getElementById('attack-panel'),
+        skillsGrid: document.getElementById('skills-grid'),
+        vfxLayer: document.getElementById('vfx-layer'),
+        stageBadge: document.getElementById('stage-badge'),
+        gameContainer: document.getElementById('game-container')
+    };
+
+    /* ==========================================================================
+       4. ฟังก์ชันเริ่มต้นระบบเกม (Game Initialization)
+       ========================================================================== */
+    function initGame() {
+        document.body.className = "bg-stage-1";
+        els.playerWrapper.classList.remove('player-dead');
+        
+        currentStage = 0;
+        playerHP = playerMaxHP;
+        combo = 0;
+        maxCombo = 0;
+        auraLevel = 0;
+        score = 0;
+        timeElapsed = 0;
+        updateHearts();
+        updateAura();
+        startTimer();
+        loadStage(currentStage);
+
+        const bgMusic = document.getElementById('bg-music');
+        if (bgMusic) {
+            bgMusic.currentTime = 0;
+            bgMusic.volume = 0.2;
+            bgMusic.muted = isMuted;
+            const playBGM = () => {
+                bgMusic.play().then(() => {
+                    document.removeEventListener('click', playBGM);
+                    document.removeEventListener('keydown', playBGM);
+                }).catch(() => {});
+            };
+            playBGM();
+            document.addEventListener('click', playBGM);
+            document.addEventListener('keydown', playBGM);
+        }
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timeElapsed++;
+            const m = String(Math.floor(timeElapsed / 60)).padStart(2, '0');
+            const s = String(timeElapsed % 60).padStart(2, '0');
+            els.timerDisplay.innerText = `⏱️ ${m}:${s}`;
+        }, 1000);
+    }
+
+    function loadStage(stg) {
+        const cfg = stagesConfig[stg];
+        document.body.className = cfg.bg;
+        els.gameContainer.className = cfg.bg;
+        els.stageBadge.innerText = `STAGE ${stg + 1}`;
+        els.bossName.innerText = cfg.name;
+        
+        bossMaxHP = cfg.hp;
+        bossCurrentHP = cfg.hp;
+        updateBossHP();
+        
+        els.bossWrapper.innerHTML = cfg.svg;
+        els.bossWrapper.className = `sprite-container ${cfg.anim}`; 
+        
+        els.atkPanel.classList.add('hidden');
+        els.qPanel.classList.remove('hidden');
+        
+        activeQuestions = JSON.parse(JSON.stringify(originalStageQuestions[stg] || originalStageQuestions[0]));
+        loadQuestion();
+    }
+
+    function loadQuestion() {
+        if(activeQuestions.length === 0) {
+            activeQuestions = JSON.parse(JSON.stringify(originalStageQuestions[currentStage] || originalStageQuestions[0]));
+        }
+        const qIndex = Math.floor(Math.random() * activeQuestions.length);
+        const q = activeQuestions[qIndex];
+        activeQuestions.splice(qIndex, 1);
+        
+        els.qText.innerText = q.q;
+        els.optsGrid.innerHTML = '';
+        
+        const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+        
+        shuffled.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'pixel-btn';
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(opt, q.ans);
+            els.optsGrid.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(selected, correct) {
+        if(selected === correct) {
+            playSound('correct'); 
+            
+            /* เพิ่มคะแนนเมื่อตอบถูกต้อง (+50 คะแนน) */
+            score += 50;
+
+            els.qPanel.classList.add('hidden');
+            els.atkPanel.classList.remove('hidden');
+            renderSkills();
+        } else {
+            playSound('wrong'); 
+            takeDamage();
+        }
+    }
+
+    function renderSkills() {
+        els.skillsGrid.innerHTML = '';
+        const shuffledSkills = [...standardSkills].sort(() => Math.random() - 0.5).slice(0, 2);
+        
+        shuffledSkills.forEach(skill => {
+            const btn = document.createElement('button');
+            btn.className = 'pixel-btn skill-btn';
+            btn.style.borderColor = skill.color;
+            btn.innerText = `${skill.name} (DMG ${skill.dmg})`;
+            btn.onclick = () => executeAttack(skill.dmg, skill.vfx);
+            els.skillsGrid.appendChild(btn);
+        });
+
+        /* สุ่มแสดงทักษะพิเศษ ELDEN WRATH (อัตราสุ่ม 15%) เมื่อ Aura Level >= 1 */
+        if(auraLevel >= 1 && Math.random() < 0.15) { 
+            const ultBtn = document.createElement('button');
+            ultBtn.className = 'pixel-btn ult-btn';
+            ultBtn.innerText = `${ultimateSkill.name} (DMG ${ultimateSkill.dmg})`;
+            ultBtn.onclick = () => executeAttack(ultimateSkill.dmg, ultimateSkill.vfx);
+            els.skillsGrid.appendChild(ultBtn);
+        } 
+        
+        if (playerHP < playerMaxHP) {
+            const healBtn = document.createElement('button');
+            healBtn.className = 'pixel-btn heal-btn';
+            healBtn.innerText = '💚 ฟื้นฟูเลือด (+1 HP)';
+            healBtn.onclick = () => {
+                playSound('heal'); 
+                spawnHealVFX(); 
+                playerHP++; 
+                updateHearts();
+                els.atkPanel.classList.add('hidden');
+                setTimeout(() => { els.qPanel.classList.remove('hidden'); loadQuestion(); }, 700);
+            };
+            els.skillsGrid.appendChild(healBtn);
+        }
+    }
+
+    function executeAttack(baseDmg, vfxClass) {
+        els.atkPanel.classList.add('hidden');
+        playSound('attack'); 
+        
+        let finalDmg = Math.floor(baseDmg * (1 + (combo * 0.1))) + (auraLevel * 5);
+        
+        /* คำนวณคะแนนโบนัสจากการโจมตีร่วมกับตัวคูณคอมโบ */
+        let addedScore = 100 + (combo * 20);
+        score += addedScore;
+
+        els.playerWrapper.classList.add('power-up');
+        setTimeout(() => els.playerWrapper.classList.remove('power-up'), 800);
+
+        /* แสดงเอฟเฟกต์หน้าจอสั่นสะเทือนขณะโจมตี (Attack Screen Impact) */
+        els.gameContainer.classList.remove('attack-impact');
+        void els.gameContainer.offsetWidth; 
+        els.gameContainer.classList.add('attack-impact');
+        setTimeout(() => els.gameContainer.classList.remove('attack-impact'), 250);
+
+        spawnVFX(vfxClass);
+
+        if(vfxClass === 'vfx-thunder') {
+            document.body.classList.add('flash-white');
+            setTimeout(() => document.body.classList.remove('flash-white'), 150);
+        }
+
+        setTimeout(() => {
+            bossCurrentHP = Math.max(0, bossCurrentHP - finalDmg);
+            updateBossHP();
+            showBossDamageText(finalDmg);
+            
+            els.bossWrapper.classList.remove('boss-hurt');
+            void els.bossWrapper.offsetWidth; 
+            els.bossWrapper.classList.add('boss-hurt');
+            setTimeout(() => els.bossWrapper.classList.remove('boss-hurt'), 500);
+
+            combo++;
+            if(combo > maxCombo) maxCombo = combo;
+            updateComboUI();
+
+            if(bossCurrentHP <= 0) {
+                setTimeout(triggerStageClear, 1200);
+            } else {
+                setTimeout(() => { els.qPanel.classList.remove('hidden'); loadQuestion(); }, 1200);
+            }
+        }, 400); 
+    }
+
+    function takeDamage() {
+        playerHP--;
+        combo = 0; // รีเซ็ตคอมโบเมื่อตอบผิด
+        updateComboUI();
+        updateHearts();
+        playSound('hit'); 
+
+        /* แสดงเอฟเฟกต์ขอบแดงและการสั่นสะเทือนเมื่อรับความเสียหาย */
+        document.body.classList.add('flash-red');
+        els.gameContainer.classList.remove('hurt-shake');
+        void els.gameContainer.offsetWidth;
+        els.gameContainer.classList.add('hurt-shake');
+
+        setTimeout(() => {
+            document.body.classList.remove('flash-red');
+            els.gameContainer.classList.remove('hurt-shake');
+        }, 350);
+
+        els.playerWrapper.classList.add('player-hit');
+        setTimeout(() => els.playerWrapper.classList.remove('player-hit'), 400);
+
+        showPlayerDamageText(1);
+
+        if(playerHP <= 0) {
+            setTimeout(() => endGame(false), 600);
+        } else {
+            setTimeout(() => loadQuestion(), 600);
+        }
+    }
+
+    function triggerStageClear() {
+        auraLevel++;
+        updateAura();
+        
+        /* คำนวณโบนัสคะแนนเคลียร์ด่าน (+500 x Aura Level) */
+        score += 500 * auraLevel;
+        
+        if(currentStage >= 4) endGame(true);
+        else document.getElementById('stage-clear-modal').classList.remove('hidden');
+    }
+
+    function nextStage() {
+        document.getElementById('stage-clear-modal').classList.add('hidden');
+        currentStage++;
+        loadStage(currentStage);
+    }
+
+    /* ==========================================================================
+       5. ระบบคำนวณเกรดประเมินผล (Ranking Calculation System)
+       ========================================================================== */
+    function calculateRank(totalScore) {
+        if (totalScore >= 10000) return { rank: 'SS', color: '#ffd700' };
+        if (totalScore >= 8000)  return { rank: 'S',  color: '#ff007f' };
+        if (totalScore >= 6000)  return { rank: 'A',  color: '#39ff14' };
+        if (totalScore >= 4000)  return { rank: 'B',  color: '#38bdf8' };
+        if (totalScore >= 2000)  return { rank: 'C',  color: '#ffea00' };
+        if (totalScore >= 1000)  return { rank: 'D',  color: '#fb923c' };
+        return { rank: 'F', color: '#ff0055' };
+    }
+
+    /* ฟังก์ชันประมวลผลเมื่อจบเกม (End Game State) */
+    function endGame(isWin) {
+        clearInterval(timerInterval);
+        const bgMusic = document.getElementById('bg-music');
+        if (bgMusic) bgMusic.pause();
+
+        if (!isWin) {
+            playSound('defeat');
+            els.playerWrapper.classList.add('player-dead');
+        } else {
+            playSound('correct');
+        }
+
+        const modal = document.getElementById('end-modal');
+        modal.classList.remove('hidden');
+        
+        document.getElementById('end-title').innerText = isWin ? "🎉 GAME CLEARED! 🎉" : "💀 GAME OVER 💀";
+        document.getElementById('end-title').style.color = isWin ? "#ffd700" : "#ff0055";
+
+        const m = String(Math.floor(timeElapsed / 60)).padStart(2, '0');
+        const s = String(timeElapsed % 60).padStart(2, '0');
+        
+        /* คำนวณอัตราหักคะแนนชดเชยเวลาที่ใช้ (3 คะแนน / วินาที) */
+        const timePenaltyRate = 3; 
+        const timePenalty = timeElapsed * timePenaltyRate;
+        const finalNetScore = Math.max(0, score - timePenalty);
+
+        document.getElementById('sb-time').innerText = `${m}:${s}`;
+        document.getElementById('sb-combo').innerText = `${maxCombo}x`;
+        document.getElementById('sb-aura').innerText = `LV.${auraLevel}`;
+        
+        /* อัปเดตการแสดงผลคะแนนเบื้องต้น คะแนนที่ถูกหัก และคะแนนสุทธิ */
+        if (document.getElementById('sb-base-score')) {
+            document.getElementById('sb-base-score').innerText = score.toLocaleString();
+        }
+        if (document.getElementById('sb-time-penalty')) {
+            document.getElementById('sb-time-penalty').innerText = `-${timePenalty.toLocaleString()}`;
+        }
+        document.getElementById('sb-score').innerText = finalNetScore.toLocaleString();
+
+        /* อัปเดตการแสดงผลเกรดประเมินจากคะแนนสุทธิ */
+        const rankResult = calculateRank(finalNetScore);
+        const rankBadge = document.getElementById('sb-rank');
+        rankBadge.innerText = rankResult.rank;
+        rankBadge.style.color = rankResult.color;
+    }
+
+    function updateHearts() { els.hearts.innerText = '❤️'.repeat(playerHP) + '🖤'.repeat(playerMaxHP - playerHP); }
+    function updateAura() { 
+        els.auraLv.innerText = auraLevel;
+        els.playerWrapper.className = `sprite-container idle-anim aura-${Math.min(auraLevel, 5)}`;
+    }
+    function updateBossHP() {
+        const pct = (bossCurrentHP / bossMaxHP) * 100;
+        els.bossHpFill.style.width = `${pct}%`;
+        els.bossHpFill.style.background = pct > 50 
+            ? 'linear-gradient(90deg, #059669 0%, #39ff14 100%)' 
+            : (pct > 20 ? 'linear-gradient(90deg, #d97706 0%, #ffea00 100%)' : 'linear-gradient(90deg, #991b1b 0%, #ff1744 100%)');
+    }
+    function updateComboUI() {
+        if(combo > 1) { els.comboBadge.style.display = 'block'; els.comboCount.innerText = combo; } 
+        else els.comboBadge.style.display = 'none';
+    }
+
+    function spawnVFX(className) {
+        const vfx = document.createElement('div');
+        vfx.className = className;
+        els.vfxLayer.appendChild(vfx);
+        setTimeout(() => vfx.remove(), 1200); 
+    }
+
+    function showBossDamageText(amt) {
+        const txt = document.createElement('div');
+        txt.className = 'dmg-text';
+        txt.innerText = '-' + amt;
+        txt.style.left = (65 + (Math.random()*10 - 5)) + 'vw';
+        txt.style.top = (35 + (Math.random()*10 - 5)) + 'vh';
+        els.vfxLayer.appendChild(txt);
+        setTimeout(() => txt.remove(), 1000);
+    }
+
+    function showPlayerDamageText(amt) {
+        const txt = document.createElement('div');
+        txt.className = 'player-dmg-text';
+        txt.innerText = '-' + amt + ' HP';
+        txt.style.left = (15 + (Math.random()*5 - 2.5)) + 'vw'; 
+        txt.style.top = (60 + (Math.random()*5 - 2.5)) + 'vh';
+        els.vfxLayer.appendChild(txt);
+        setTimeout(() => txt.remove(), 1000);
+    }
+    
+    function spawnHealVFX() {
+        const txt = document.createElement('div');
+        txt.className = 'vfx-heal-text';
+        txt.innerText = '💚 +1 HP';
+        els.vfxLayer.appendChild(txt);
+        setTimeout(() => txt.remove(), 1200);
+    }
+
+    window.onload = initGame;
+</script>
+</body>
+</html>

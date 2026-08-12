@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELDEN KNIGHT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="Logo.png">
+    <style>
+        /* ==========================================================================
+           Global & Reset Styles
+           ========================================================================== */
+        * { box-sizing: border-box; user-select: none; }
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            overflow: hidden; font-family: 'Press Start 2P', cursive;
+            color: #fff; background-color: #05070c;
+        }
+
+        /* --- Post-Processing Effects (Vignette & CRT Overlay) --- */
+        .vignette {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at 50% 50%, transparent 15%, rgba(2, 3, 6, 0.96) 100%);
+            z-index: 25; pointer-events: none;
+        }
+        .crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%);
+            background-size: 100% 4px; z-index: 30; pointer-events: none; opacity: 0.35;
+        }
+
+        /* --- Environment Background & Lighting Effects --- */
+        .slate-cave-bg {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at 50% 45%, #192233 0%, #0b101a 60%, #030508 100%);
+            z-index: 1;
+        }
+
+        /* แสงคบเพลิงแบบไดนามิก (Dynamic Torch Light) */
+        .ambient-torch {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(255, 140, 0, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 30%, rgba(56, 189, 248, 0.12) 0%, transparent 50%);
+            z-index: 2; pointer-events: none;
+            animation: torchFlicker 3s infinite alternate ease-in-out;
+        }
+        @keyframes torchFlicker {
+            0% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.02); }
+            100% { opacity: 0.8; transform: scale(0.98); }
+        }
+
+        /* ลำแสงส่องผ่าน (Volumetric God Rays) */
+        .god-rays {
+            position: absolute; top: -10%; left: 50%; transform: translateX(-50%);
+            width: 380px; height: 110vh;
+            background: linear-gradient(180deg, 
+                rgba(255, 228, 158, 0.4) 0%, 
+                rgba(212, 163, 75, 0.18) 50%, 
+                rgba(255, 215, 0, 0) 100%);
+            clip-path: polygon(35% 0%, 65% 0%, 100% 100%, 0% 100%);
+            pointer-events: none; z-index: 3;
+            filter: blur(12px);
+            animation: rayPulse 4s ease-in-out infinite alternate;
+        }
+        @keyframes rayPulse {
+            0% { opacity: 0.6; transform: translateX(-50%) scaleX(0.92); }
+            100% { opacity: 1; transform: translateX(-50%) scaleX(1.08); }
+        }
+
+        /* เอฟเฟกต์หมอกพารัลแลกซ์ (Parallax Fog Layers) */
+        .fog-back {
+            position: absolute; bottom: 10%; left: -50%; width: 200%; height: 35vh;
+            background: linear-gradient(to top, rgba(15, 23, 42, 0.6), transparent);
+            filter: blur(20px); z-index: 3; pointer-events: none;
+            animation: fogMoveBack 25s linear infinite alternate;
+        }
+        .fog-front {
+            position: absolute; bottom: 0; left: 0; width: 200%; height: 25vh;
+            background: radial-gradient(ellipse at 50% 100%, rgba(56, 189, 248, 0.12), transparent 70%);
+            filter: blur(15px); z-index: 6; pointer-events: none;
+            animation: fogMoveFront 16s ease-in-out infinite alternate;
+        }
+        @keyframes fogMoveBack { 0% { transform: translateX(0); } 100% { transform: translateX(20%); } }
+        @keyframes fogMoveFront { 0% { transform: translateX(-10%); } 100% { transform: translateX(10%); } }
+
+        /* อนุภาคประกายไฟ (Ember Particles) */
+        .ember-particles {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 200vh;
+            background-image: 
+                radial-gradient(2.5px 2.5px at 100px 300px, #ffd700, rgba(0,0,0,0)),
+                radial-gradient(3px 3px at 300px 600px, #fff7ad, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 500px 200px, #ffaa00, rgba(0,0,0,0)),
+                radial-gradient(3.5px 3.5px at 750px 800px, #ffd700, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 900px 400px, #38bdf8, rgba(0,0,0,0));
+            background-size: 650px 650px;
+            animation: floatEmbers 18s linear infinite; opacity: 0.85; z-index: 7;
+            filter: drop-shadow(0 0 6px #ffd700);
+        }
+        @keyframes floatEmbers {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(-50%) rotate(4deg); }
+        }
+
+        /* --- Foreground Structure & Floor --- */
+        .cavern-frame {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 4;
+        }
+
+        .slate-floor {
+            position: absolute; bottom: 0; left: 0; width: 100vw; height: 22vh;
+            background: linear-gradient(to top, #060912 0%, #172233 60%, #334155 100%);
+            border-top: 3px solid #475569;
+            box-shadow: inset 0 10px 30px rgba(0,0,0,0.95), 0 -15px 35px rgba(255, 215, 0, 0.2);
+            z-index: 5;
+        }
+
+        /* ==========================================================================
+           UI Components & Typography
+           ========================================================================== */
+        #lobby-container {
+            position: relative; z-index: 15; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; gap: 35px;
+        }
+
+        /* หัวข้อชื่อเกม (Game Title Display) */
+        .game-title-wrapper { position: relative; display: inline-block; }
+        .game-title {
+            font-size: 70px;
+            background: linear-gradient(180deg, #ffffff 0%, #fff099 25%, #ffd700 50%, #b8860b 75%, #5e3c03 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: 
+                drop-shadow(0px 4px 0px #422a02)
+                drop-shadow(0px 8px 0px #1a1000)
+                drop-shadow(0px 12px 20px rgba(0,0,0,0.95))
+                drop-shadow(0px 0px 35px rgba(255, 215, 0, 0.85));
+            animation: titleGoldFloat 3.5s ease-in-out infinite; line-height: 1.2;
+            letter-spacing: 6px; margin-top: -20px;
+        }
+        @keyframes titleGoldFloat {
+            0%, 100% { 
+                transform: translateY(0); 
+                filter: drop-shadow(0px 4px 0px #422a02) drop-shadow(0px 8px 0px #1a1000) drop-shadow(0px 12px 20px rgba(0,0,0,0.95)) drop-shadow(0px 0px 35px rgba(255, 215, 0, 0.8));
+            }
+            50% { 
+                transform: translateY(-12px); 
+                filter: drop-shadow(0px 4px 0px #422a02) drop-shadow(0px 8px 0px #1a1000) drop-shadow(0px 20px 25px rgba(0,0,0,0.95)) drop-shadow(0px 0px 60px rgba(255, 215, 0, 1));
+            }
+        }
+
+        /* ส่วนแสดงตัวละครหลัก (Hero Showcase) */
+        .hero-showcase {
+            margin: 0 0 10px 0; position: relative;
+            animation: playerBreathe 2s ease-in-out infinite; transform-origin: bottom center;
+        }
+        .hero-showcase::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+            width: 150px; height: 20px; background: rgba(255, 215, 0, 0.55);
+            border-radius: 50%; filter: blur(10px); z-index: -1;
+            animation: lightPulse 2s ease-in-out infinite;
+        }
+        @keyframes playerBreathe {
+            0%, 100% { transform: scaleX(1) scaleY(1) translateY(0); filter: drop-shadow(0 18px 15px rgba(0,0,0,0.95)); }
+            50% { transform: scaleX(1.025) scaleY(0.975) translateY(7px); filter: drop-shadow(0 8px 8px rgba(0,0,0,1)); }
+        }
+        @keyframes lightPulse {
+            0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.5; }
+            50% { transform: translateX(-50%) scale(1.3); opacity: 0.9; background: rgba(255, 228, 158, 0.75); }
+        }
+
+        /* เมนูและปุ่มเริ่มต้นเกม (Interactive Controls) */
+        .menu-grid { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 410px; z-index: 20; }
+        
+        button.btn-start {
+            background: linear-gradient(180deg, #382807 0%, #120b01 100%); 
+            color: #fff3b0; 
+            border: 4px solid #ffd700;
+            outline: 2px solid #734b07;
+            padding: 24px; font-family: 'Press Start 2P', cursive; font-size: 19px;
+            cursor: pointer; text-align: center; 
+            text-shadow: 2px 2px 0 #000, 0 0 12px rgba(255, 215, 0, 0.6);
+            box-shadow: 
+                inset 0 0 18px rgba(255, 215, 0, 0.3),
+                inset -4px -4px 0 rgba(0,0,0,0.9), 
+                6px 6px 0 #000, 
+                0 0 30px rgba(255, 215, 0, 0.4);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            position: relative; overflow: hidden;
+            letter-spacing: 2px;
+        }
+        button.btn-start::before {
+            content: ''; position: absolute; top: -50%; left: -100%; width: 50%; height: 200%;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.75), transparent);
+            transform: rotate(30deg); animation: goldShine 2.8s infinite;
+        }
+        button.btn-start:hover {
+            background: linear-gradient(180deg, #ffe49e 0%, #d4af37 50%, #8a5a0d 100%); 
+            color: #ffffff; border-color: #ffffff;
+            text-shadow: 2px 2px 0 #3d2b06, 0 0 15px #ffffff;
+            box-shadow: 
+                inset 0 0 25px rgba(255, 255, 255, 0.8),
+                inset -4px -4px 0 rgba(0,0,0,0.6),
+                10px 10px 0 #000, 
+                0 0 55px rgba(255, 215, 0, 1); 
+            transform: translateY(-5px) scale(1.06);
+        }
+        button.btn-start:active { 
+            transform: translateY(3px) scale(0.95); 
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.95), 0 0 25px rgba(255, 215, 0, 0.7); 
+        }
+        button.btn-start.clicked { pointer-events: none; filter: brightness(1.6) contrast(1.3); animation: buttonVibrate 0.08s infinite; }
+        
+        @keyframes goldShine { 0% { left: -100%; } 35%, 100% { left: 200%; } }
+        @keyframes buttonVibrate { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+        /* ข้อความแจ้งเตือนระบบเสียง (Audio Activation Prompt) */
+        .click-to-play {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            font-size: 10px; color: #ffd700; z-index: 40; animation: pulseText 2s infinite;
+            text-shadow: 2px 2px 0 #000; letter-spacing: 1px;
+        }
+        @keyframes pulseText { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; filter: drop-shadow(0 0 8px #ffd700); } }
+    </style>
+</head>
+<body>
+
+<!-- แหล่งอ้างอิงไฟล์เสียงเพลงประกอบ (Background Music Resource) -->
+<audio id="bg-music" loop preload="auto">
+    <source src="Sound/BG Sound/BG001.mp3" type="audio/mpeg">
+</audio>
+
+<!-- องค์ประกอบฉากหลังและเอฟเฟกต์บรรยากาศ (Background & Environment Layer) -->
+<div class="slate-cave-bg"></div>
+<div class="ambient-torch"></div>
+<div class="god-rays"></div>
+<div class="fog-back"></div>
+<div class="ember-particles"></div>
+<div class="slate-floor"></div>
+<div class="fog-front"></div>
+
+<!-- โครงสร้างกรอบโขดหินส่วนหน้า (Foreground Cavern Structure) -->
+<svg class="cavern-frame" viewBox="0 0 1000 600" preserveAspectRatio="none" style="shape-rendering: crispEdges;">
+    <path d="M0,0 L1000,0 L1000,70 L920,130 L850,50 L780,110 L700,40 L620,100 L500,30 L380,110 L300,40 L220,120 L150,50 L80,130 L0,60 Z" fill="#060910" />
+    <path d="M0,0 L1000,0 L1000,40 L880,90 L810,30 L720,80 L650,20 L520,70 L420,20 L320,80 L250,20 L130,80 L0,30 Z" fill="#111827" opacity="0.85" />
+    <g fill="#162032">
+        <polygon points="430,0 570,0 590,520 410,520" />
+        <polygon points="450,0 550,0 560,520 440,520" fill="#202c42" />
+        <polygon points="480,120 520,140 500,250 510,380 470,420" fill="#0d1424" />
+    </g>
+    <polygon points="0,150 120,220 180,380 120,530 0,530" fill="#0f172a" />
+    <g>
+        <polygon points="0,320 110,270 200,360 250,500 0,550" fill="#1e293b" />
+        <polygon points="10,340 100,285 180,365 230,490 0,530" fill="#2d3d54" />
+        <polygon points="60,300 100,285 140,330 80,350" fill="#475569" />
+        <polygon points="120,330 180,365 170,420 110,380" fill="#334155" />
+    </g>
+    <polygon points="0,450 80,420 140,490 120,560 0,560" fill="#131c2e" />
+    <polygon points="1000,160 880,240 820,390 890,530 1000,530" fill="#0f172a" />
+    <g>
+        <polygon points="1000,200 890,320 810,480 870,540 1000,550" fill="#1e293b" />
+        <polygon points="1000,220 900,330 825,475 880,530 1000,540" fill="#2d3d54" />
+        <polygon points="900,330 960,310 930,390 880,380" fill="#475569" />
+        <polygon points="825,475 870,410 910,470 850,510" fill="#334155" />
+    </g>
+    <polygon points="1000,420 910,450 830,520 890,570 1000,570" fill="#0d1424" />
+</svg>
+
+<!-- เลเยอร์เอฟเฟกต์ตกแต่งหน้าจอ (Overlay Layer) -->
+<div class="vignette"></div>
+<div class="crt-overlay"></div>
+
+<div class="click-to-play">[ CLICK ANYWHERE TO START MUSIC ]</div>
+
+<!-- ส่วนประกอบหลักของหน้าจอล็อบบี้ (Main Lobby Content) -->
+<div id="lobby-container">
+    <!-- แสดงชื่อเกมหลัก -->
+    <div class="game-title-wrapper">
+        <div class="game-title">ELDEN KNIGHT</div>
+    </div>
+
+    <!-- โมเดลพิกเซลตัวละครหลัก -->
+    <div class="hero-showcase">
+        <svg width="250" height="250" viewBox="0 0 16 16" style="shape-rendering: crispEdges;">
+            <rect x="2" y="6" width="3" height="9" fill="#58000d" />
+            <rect x="1" y="8" width="2" height="7" fill="#3a0008" />
+            <rect x="5" y="6" width="6" height="7" fill="#b8860b" />
+            <rect x="6" y="7" width="4" height="5" fill="#ffd700" />
+            <rect x="7" y="8" width="2" height="3" fill="#fff8dc" />
+            <rect x="5" y="2" width="6" height="4" fill="#ffd700" />
+            <rect x="6" y="3" width="4" height="2" fill="#222" />
+            <rect x="7" y="3" width="2" height="1" fill="#00e5ff" />
+            <rect x="4" y="0" width="2" height="3" fill="#ffd700" />
+            <rect x="10" y="0" width="2" height="3" fill="#ffd700" />
+            <rect x="5" y="13" width="2" height="3" fill="#b8860b" />
+            <rect x="9" y="13" width="2" height="3" fill="#b8860b" />
+            <rect x="4" y="15" width="3" height="1" fill="#ffd700" />
+            <rect x="9" y="15" width="3" height="1" fill="#ffd700" />
+            <rect x="12" y="1" width="2" height="12" fill="#ffd700" />
+            <rect x="13" y="2" width="1" height="10" fill="#00e5ff" />
+            <rect x="11" y="11" width="4" height="1" fill="#b8860b" />
+            <rect x="12" y="12" width="1" height="3" fill="#3a0008" />
+            <rect x="3" y="7" width="2" height="5" fill="#ffd700" />
+            <rect x="4" y="8" width="1" height="3" fill="#00e5ff" />
+        </svg>
+    </div>
+
+    <!-- ปุ่มเมนูหลัก -->
+    <div class="menu-grid">
+        <button id="start-btn" class="btn-start" onclick="startGame()">▶ ENTER CAVERN</button>
+    </div>
+</div>
+
+<script>
+    // ==========================================================================
+    // Audio System & Media Handlers
+    // ==========================================================================
+
+    // กำหนดองค์ประกอบและระดับเสียงเพลงประกอบ (Background Music)
+    const bgMusic = document.getElementById('bg-music');
+    bgMusic.volume = 0.2; // กำหนดระดับเสียง BGM ไว้ที่ 20%
+    
+    /**
+     * เปิดใช้งานการเล่นเสียงเมื่อผู้ใช้โต้ตอบกับหน้าเว็บ
+     * ใช้แก้ไขข้อจำกัดการเล่นเสียงอัตโนมัติ (Autoplay Policy) ของเว็บเบราว์เซอร์
+     */
+    function enableAudio() {
+        if (bgMusic.paused) {
+            bgMusic.play().then(() => {
+                const hint = document.querySelector('.click-to-play');
+                if (hint) hint.style.display = 'none';
+            }).catch(e => console.error("Audio playback initialization failed:", e));
+        }
+    }
+
+    // ตรวจจับการคลิกครั้งแรกของผู้ใช้เพื่อปลดล็อกระบบเสียง
+    document.addEventListener('click', enableAudio, { once: true });
+
+    // กำหนดไฟล์และระดับเสียงเอฟเฟกต์ปุ่มกด (Sound Effects)
+    const startSfx = new Audio('Sound/sfx/Game start.mp3');
+    startSfx.volume = 0.5; // กำหนดระดับเสียง SFX ไว้ที่ 50%
+
+    // ==========================================================================
+    // Game State Controls & Navigation
+    // ==========================================================================
+
+    /**
+     * เริ่มต้นเข้าสู่ระบบเกม
+     * เล่นเสียงเอฟเฟกต์ แสดงแอนิเมชัน และนำทางไปยังหน้าเกมหลัก (Game.html)
+     */
+    function startGame() {
+        // ยืนยันการเปิดใช้งานระบบเสียง
+        enableAudio();
+
+        // อัปเดตสถานะและรูปโฉมของปุ่มกด
+        const btn = document.getElementById('start-btn');
+        btn.classList.add('clicked'); 
+        btn.innerHTML = "ENTERING..."; 
+
+        // เล่นเสียงเอฟเฟกต์การเริ่มต้นเกม
+        startSfx.currentTime = 0;
+        startSfx.play().catch(e => console.error("SFX playback failed:", e));
+
+        // หน่วงเวลา 800ms เพื่อให้เสียงและแอนิเมชันทำงานเสร็จสิ้นก่อนเปลี่ยนหน้าเว็บ
+        setTimeout(() => {
+            window.location.href = 'Game.html'; 
+        }, 800); 
+    }
+</script>
+</body>
+</html>
